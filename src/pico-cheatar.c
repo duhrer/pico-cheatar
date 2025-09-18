@@ -8,6 +8,7 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "pico/bootrom.h"
+#include "chords.h"
 
 // Set the "data plus" pin for PIO USB to 16, which is what the Adafruit feather rp2040 with USB Host uses.
 #define PIO_USB_DP_PIN      16
@@ -44,55 +45,31 @@ static int last_string = -1;
 static int last_note = -1;
 static bool use_7th_chords = false;
 
-// TODO: Come up with a way to represent keys that covers major/minor/major7/7/minor7/etc.
+static enum key_type current_key_type = MAJOR_KEY;
+static int current_key_root_note = 7; // G
 
-// TODO: Come up with a lookup table for chords instead
+static key current_key = { 0 };
+static chord current_chord = { 0 };
 
-// Open tuning, in offsets from C
-//
-// E: 4
-// A: 9
-// D: 14
-// G: 19
-// B: 23
-// E: 28
-
-// G major chord frets to add to the above
-//
-// E + 3
-// A + 2
-// D
-// G
-// B
-// E + 3
-
-// G major chord, expressed in offsets from C (36)
-//
-// 7
-// 11
-// 14
-// 19
-// 23
-// 31
-
-// TODO: Make a chord lookup system instead
-
-// G major chord, as MIDI notes per string
-// TODO: We used to do this like tablature, think about whether to do that again.
-uint8_t chord[6] = {
-  43,
-  47,
-  50,
-  55,
-  59,
-  67
-};
-
-// We need this to fade out notes over time.
+// Required to manage the "fade" over time
 static int velocity_by_string[6] = { 0 };
 
 // We also need to know which note is playing per string so we can manage that correctly on each strum.
 static int note_by_string[6] = { -1 };
+
+// End guitar state.
+
+// Initiliase variables we can't set at compile time.
+void reset_key_and_chord () {
+  if (current_key_type == MAJOR_KEY) {
+    set_major_key_by_note(current_key_root_note, current_key);
+  }
+  else if (current_key_type == MINOR_KEY) {
+    set_minor_key_by_note(current_key_root_note, current_key);
+  }
+
+  set_chord_by_key_and_note(current_chord, current_key, current_key_root_note);
+}
 
 void midi_client_task(void);
 void midi_host_task(void);
@@ -175,15 +152,34 @@ void process_incoming_packet (uint8_t *incoming_packet) {
 
       int note_relative_to_c = midi_data[1] % 12;
 
+      // Double-Tap
       if (note_relative_to_c == last_note) {
-        // TODO: handle key change
+        if (note_relative_to_c == current_key_root_note) {
+          // Toggle between major and minor
+          current_key_type = (current_key_type == MAJOR_KEY) ? MINOR_KEY : MAJOR_KEY;
+        }
+        else {
+          // Change key
+          current_key_root_note = note_relative_to_c;
+        }
+
+        // Apply changes
+        reset_key_and_chord();
       }
+      // Single Tap
       else {
-        // TODO: Detect whether the current note corresponds to a chord in this key
+        // Detect whether the current note corresponds to a chord in this key
 
-        // If so, change the chord
+        // If it's a "dead" pad, toggle 7th chords
+        if (is_empty_chord(current_key[note_relative_to_c])) {
+          use_7th_chords = !use_7th_chords;
 
-        // If not, toggle 7th chords
+          // TODO: Change the key to the 7th variation as well.
+        }
+        // If it's a "live" pad, change the current chord
+        else {
+          set_chord(current_chord, current_key[note_relative_to_c]);
+        }
       }
       last_note = note_relative_to_c;
       break;
@@ -323,21 +319,22 @@ void stop_string(int string) {
 };
 
 void start_string(int string) {
-  int note = chord[string];
+  int note = current_chord[string];
 
-  uint8_t midi_data[3] = {
-      MIDI_CIN_NOTE_ON << 4,
-      note,
-      127
-  };
-  tud_midi_stream_write(0, midi_data, 3);
+  if (note > 0) {
+    uint8_t midi_data[3] = {
+        MIDI_CIN_NOTE_ON << 4,
+        note,
+        127
+    };
+    tud_midi_stream_write(0, midi_data, 3);
 
-  note_by_string[string] = chord[string];
-  velocity_by_string[string] = 127;
+    note_by_string[string] = current_chord[string];
+    velocity_by_string[string] = 127;
+  }
 };
 
 static absolute_time_t last_pass_time;
-
 
 void fade_note_task(void) {
   if (is_nil_time(last_pass_time)) {

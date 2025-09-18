@@ -25,13 +25,14 @@ add_subdirectory(${PICO_PIO_USB_PATH} ${CMAKE_BINARY_DIR}/Pico-PIO-USB)
 # Add your source files
 add_executable(${NAME}
     src/pico-cheatar.c
+    src/chords.c
     src/usb_descriptors.c
 )
 
 # use tinyusb implementation
 target_compile_definitions(${NAME} PRIVATE PIO_USB_USE_TINYUSB)
 
-target_include_directories(${NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link required libraries
 target_link_libraries(

@@ -94,22 +94,49 @@ you can use `openocd` to deploy binaries. With this method, you deploy the
 
 ## Trying it Out
 
+### Connect Everything
+
 First, connect a controller to the "host" port on the microcontroller. Although
 it can in theory be used with any MIDI controller, this project is primarily
 tested with a [Korg Nanopad
 2](https://www.korg.com/nl/products/computergear/nanopad2/), whose x/y pad is
-ideal for simulating strumming.
+ideal for simulating strumming. See [the tuning guide](docs/tuning.md) for tips
+about configuring your Nanopad (2).
 
-The "client" port is conected to a computer or other USB host, which needs to
-run something that produces sound. I wrote a crude [web-based "ROMpler" I
+Connect the "client" port to a computer or other USB host.  The USB host needs
+to run something that produces sound. I wrote a crude [web-based "ROMpler" I
 wrote](https://duhrer.github.io/demos/guitarompler/) to use with this project,
 but I also use it with guitar patches on a DX7 emulator like
-[Dexed](https://github.com/asb2m10/dexed).
+[Dexed](https://github.com/asb2m10/dexed). You'll also need to configure
+whatever is producing sound to connect to the "Pico Cheatar" MIDI input.
 
-Notes played on the original MIDI controller set the key of the guitar and the
-simulated chord that is held. Pressing a note twice in rapid succession sets the
-"key". Pressing the same note twice in rapid succession toggles between major
-and minor chording.
+### Play Stuff
+
+The MIDI controller is your input from this point on. Hold it with the X/Y pad
+next to your preferred strumming hand and the pads where your other hand can
+operate them like frets.
+
+#### The "Strum"
+
+The "mod wheel" on the MIDI controller is used to "strum" the guitar. In the
+case of the Nanopad series, the X/Y pad acts as the mod wheel. When the wheel
+passes the location of one of the "strings", a corresponding note is played (or
+not played, in the case of chords that are not played on all strings).
+
+The mod wheel only triggers notes when travelling between the zones that
+correspond to a string. Holding the mod wheel near one string will not retrigger
+that string.
+
+Like a guitar, the strum is meant to support multiple styles, i.e. strumming
+only in one direction, versus alternating back and forth strums.  It's also
+meant to support different speeds.
+
+#### The "Frets"
+
+Notes played on the MIDI controller set the key of the guitar and the simulated
+chord that is held. Pressing a note twice in rapid succession sets the "key".
+Pressing the same note twice in rapid succession toggles between major and minor
+chording.
 
 Once the key is set, only the chords in the key are active. For example, if you
 double-tap the C key, the chord is set to C major, and the chords that can be
@@ -123,39 +150,30 @@ played are:
 * A minor
 * B dim
 
-Tapping a note once sets the chord to be played, but only if it's in the current
-"key". So for example, if the key is C major, holding the F key would set the
-chord to F major. If multiple notes in the current key are held, only the last
-is used. Tapping a note that's not in the current key toggles 7th chords. Note
-that by tapping I mean that the "note on" triggers things. You can keep your
-finger on the pad if that feels more natural.
+Notes have a couple of other functions. Tapping a note once sets the chord to be
+played, but only if it's in the current "key". So for example, if the key is C
+major, holding the F key would set the chord to F major. If multiple notes in
+the current key are held, the most recently pressed wins.
 
-The "mod wheel" on the MIDI controller is used to "strum" the guitar. When the
-wheel passes the location of one of the "strings", a corresponding note is
-played (or not played, in the case of chords that are not played on all
-strings). The upper range of the mod wheel triggers the low E on the guitar, so
-that a flipped NanoPad (2) can simulate a right-handed guitar. Continuing the
-previous example, if the F note is held, moving the mod wheel will trigger one
-note in the chord for each "string" that it passes.
+Tapping a note that's not in the current key toggles 7th chords. Note that by
+tapping I mean that the "note on" triggers things. You can keep your finger on
+the pad if that feels more natural.
 
-The mod wheel only triggers notes when travelling between the zones that
-correspond to a string. Holding the mod wheel near one string will not retrigger
-that string.
+If this all seems a bit much, check out the [tuning guide](docs/tuning.md),
+which goes into a bit more of the rationale.  It's meant to make sense to play.
+I hope it does.
+
+#### Stuff to Make Things Sound More Guitarish
 
 When the mod wheel is not triggering a string, any notes currently playing are
-faded out using polyphonic aftertouch messages. Pressing any note on the MIDI
-controller will immediately "mute" all existing strings.
+faded out using polyphonic aftertouch messages. This is meant to more closely
+simulate the decay of guitar strings, without relying solely on the decay of the
+patch you're connecting to.
+
+Pressing any note on the MIDI controller will immediately "mute" all existing
+strings. This is meant to act like a thumb across the strings, so you can stop
+the strings from ringing out on demand.
+
+#### Everything Else
 
 All other MIDI messages from the MIDI controller (including pitchbend) are ignored.
-
-### A Note for Nanopad (2) Users
-
-The layout of the Nanopad 2 (and the original Nanopad) can be edited using the
-[Korg Kontrol
-Editor](https://www.korg.com/us/support/download/software/1/253/1354/). To use
-this project, your pad needs to be configured to have a drum pad that triggers a
-note corresponding to each key and chord you wish to trigger.
-
-It's suggested that you set the Y axis of the X/Y pad to the mod wheel and set
-the X axis to do nothing (instead of the default pitch bend). This will greatly
-reduce the volume of MIDI messages that have to be processed.
